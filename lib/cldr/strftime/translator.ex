@@ -4,42 +4,48 @@ defmodule Cldr.Strftime.Translator do
   @standard_formats [:short, :medium, :long, :full]
 
   def substitute(date_time_formats, date_formats, time_formats) do
-    Enum.reduce @standard_formats, Map.new(), fn format, acc ->
+    Enum.reduce(@standard_formats, Map.new(), fn format, acc ->
       datetime_format = Map.fetch!(date_time_formats, format)
       date_format = Map.fetch!(date_formats, format)
       time_format = Map.fetch!(time_formats, format)
 
       parsed =
         datetime_format
-        |> Cldr.Substitution.parse
+        |> Cldr.Substitution.parse()
         |> Enum.map(&translate/1)
 
       new_datetime_format =
         [time_format, date_format]
         |> Cldr.Substitution.substitute(parsed)
-        |> Enum.join
+        |> Enum.join()
 
       Map.put(acc, format, new_datetime_format)
-    end
+    end)
   end
 
   def translate(formats) when is_map(formats) do
     formats
     |> Map.take(@standard_formats)
-    |> Enum.map(fn {k, v} -> {k, translate(v)} end)
-    |> Map.new
+    |> Enum.map(fn
+      {k, v} when is_binary(v) ->
+        {k, translate(v)}
+
+      {k, %{unicode: v}} when is_binary(v) ->
+        {k, translate(v)}
+    end)
+    |> Map.new()
   end
 
   def translate("") do
     ""
   end
 
-  def translate(<< "\\%", rest :: binary>>) do
-    << "%%", translate(rest) :: binary >>
+  def translate(<<"\\%", rest::binary>>) do
+    <<"%%", translate(rest)::binary>>
   end
 
-  def translate(<< "\\", char :: utf8, rest :: binary>>) do
-    << "\\", char :: utf8, translate(rest) :: binary >>
+  def translate(<<"\\", char::utf8, rest::binary>>) do
+    <<"\\", char::utf8, translate(rest)::binary>>
   end
 
   def translate("'" <> rest) do
@@ -206,8 +212,8 @@ defmodule Cldr.Strftime.Translator do
     "%Z" <> translate(rest)
   end
 
-  def translate(<< char :: utf8, rest :: binary >>) do
-    << char :: utf8, translate(rest) :: binary >>
+  def translate(<<char::utf8, rest::binary>>) do
+    <<char::utf8, translate(rest)::binary>>
   end
 
   def translate(other) do
@@ -224,12 +230,11 @@ defmodule Cldr.Strftime.Translator do
     acc <> rest
   end
 
-  defp quoted_string(<< "\\", char :: utf8, rest :: binary >>, acc) do
-    quoted_string(rest, << acc :: binary, char :: utf8 >>)
+  defp quoted_string(<<"\\", char::utf8, rest::binary>>, acc) do
+    quoted_string(rest, <<acc::binary, char::utf8>>)
   end
 
-  defp quoted_string(<< char :: utf8, rest :: binary >>, acc) do
-    quoted_string(rest, << acc :: binary, char :: utf8 >>)
+  defp quoted_string(<<char::utf8, rest::binary>>, acc) do
+    quoted_string(rest, <<acc::binary, char::utf8>>)
   end
-
 end
